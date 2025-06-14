@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Navy Event Planer Online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+</head>
+<body class="bg-gradient-to-br from-blue-900 to-gray-800 text-white min-h-screen font-sans p-6">
+
+  <header class="max-w-4xl mx-auto mb-8 text-center">
+    <h1 class="text-4xl font-extrabold tracking-wide mb-2">⚓ Navy Einsatzplaner Online</h1>
+    <p class="text-lg text-gray-300">Trage Einsätze ein, alle sehen die Änderungen live</p>
+  </header>
+
+  <main class="max-w-4xl mx-auto">
+
+    <!-- Eingabeformular -->
+    <section class="mb-8 max-w-md mx-auto bg-gray-100 text-black p-6 rounded-xl shadow-lg">
+      <div class="mb-4">
+        <input id="idInput" type="text" placeholder="ID (Pflicht)" class="border p-2 rounded w-full" />
+      </div>
+      <div class="mb-4">
+        <input id="nameInput" type="text" placeholder="Name (Pflicht)" class="border p-2 rounded w-full" />
+      </div>
+      <div class="mb-4">
+        <input id="nrInput" type="text" placeholder="NR-Nummer (Pflicht)" class="border p-2 rounded w-full" />
+      </div>
+
+      <div class="mb-4">
+        <label for="daySelect" class="block mb-1 font-semibold">Tag auswählen</label>
+        <select id="daySelect" class="border p-2 rounded w-full" >
+          <option value="montag">Montag</option>
+          <option value="dienstag">Dienstag</option>
+          <option value="mittwoch">Mittwoch</option>
+          <option value="donnerstag">Donnerstag</option>
+          <option value="freitag">Freitag</option>
+          <option value="samstag">Samstag</option>
+          <option value="sonntag">Sonntag</option>
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label for="eventSelect" class="block mb-1 font-semibold">Event auswählen</label>
+        <select id="eventSelect" class="border p-2 rounded w-full">
+          <option>Flugzeugträger</option>
+          <option>FZ</option>
+          <option>Bank</option>
+        </select>
+      </div>
+
+      <div class="mb-6">
+        <label for="timeInput" class="block mb-1 font-semibold">Uhrzeit (optional)</label>
+        <input type="time" id="timeInput" class="border p-2 rounded w-full" />
+      </div>
+
+      <button onclick="addEntry()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-lg font-semibold w-full transition">
+        ✅ Eintragen
+      </button>
+    </section>
+
+    <!-- Tabelle -->
+    <section class="overflow-x-auto">
+      <table class="table-auto w-full text-sm border-collapse border border-gray-300 bg-white text-black rounded-lg">
+        <thead class="bg-blue-200 text-blue-900 font-semibold">
+          <tr>
+            <th class="border px-3 py-2">ID</th>
+            <th class="border px-3 py-2">Name</th>
+            <th class="border px-3 py-2">NR</th>
+            <th class="border px-3 py-2">Montag</th>
+            <th class="border px-3 py-2">Dienstag</th>
+            <th class="border px-3 py-2">Mittwoch</th>
+            <th class="border px-3 py-2">Donnerstag</th>
+            <th class="border px-3 py-2">Freitag</th>
+            <th class="border px-3 py-2">Samstag</th>
+            <th class="border px-3 py-2">Sonntag</th>
+            <th class="border px-3 py-2">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="eventTable"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+<script>
+  const ADMIN_PASSWORD = "DeinSuperGeheimesPasswort123!";
+
+  const days = ["montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag"];
+
+  // Firebase config - ersetze diese Werte durch deine Firebase-Projektwerte
+  const firebaseConfig = {
+    apiKey: "DEINE_API_KEY",
+    authDomain: "DEIN_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://navy-event-planer-default-rtdb.firebaseio.com/",
+    projectId: "DEIN_PROJECT_ID",
+    storageBucket: "DEIN_PROJECT_ID.appspot.com",
+    messagingSenderId: "DEINE_MESSAGING_SENDER_ID",
+    appId: "DEINE_APP_ID"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  let entries = {};
+
+  window.onload = () => {
+    loadEntries();
+  };
+
+  function loadEntries() {
+    const ref = db.ref("entries");
+    ref.on("value", snapshot => {
+      entries = snapshot.val() || {};
+      renderTable();
+    });
+  }
+
+  async function addEntry() {
+    const id = document.getElementById("idInput").value.trim();
+    const name = document.getElementById("nameInput").value.trim();
+    const nr = document.getElementById("nrInput").value.trim();
+    const day = document.getElementById("daySelect").value;
+    const eventName = document.getElementById("eventSelect").value;
+    const time = document.getElementById("timeInput").value;
+
+    if (!id || !name || !nr) {
+      alert("Bitte ID, Name und NR-Nummer ausfüllen!");
+      return;
+    }
+
+    // Prüfe ob Person schon existiert
+    if (!entries[id]) {
+      entries[id] = {
+        id,
+        name,
+        nr,
+        events: {
+          montag: [],
+          dienstag: [],
+          mittwoch: [],
+          donnerstag: [],
+          freitag: [],
+          samstag: [],
+          sonntag: []
+        }
+      };
+    } else {
+      // Update Name und NR wenn geändert
+      entries[id].name = name;
+      entries[id].nr = nr;
+    }
+
+    entries[id].events[day].push({ event: eventName, time });
+
+    try {
+      await db.ref("entries/" + id).set(entries[id]);
+      resetForm();
+    } catch (error) {
+      alert("Fehler beim Speichern: " + error);
+    }
+  }
+
+  function resetForm() {
+    document.getElementById("idInput").value = "";
+    document.getElementById("nameInput").value = "";
+    document.getElementById("nrInput").value = "";
+    document.getElementById("timeInput").value = "";
+    document.getElementById("eventSelect").value = "Flugzeugträger";
+    document.getElementById("daySelect").value = "montag";
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById("eventTable");
+    tbody.innerHTML = "";
+
+    for (const key in entries) {
+      const person = entries[key];
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td class="border px-3 py-1">${escapeHtml(person.id)}</td>
+        <td class="border px-3 py-1">${escapeHtml(person.name)}</td>
+        <td class="border px-3 py-1">${escapeHtml(person.nr)}</td>
+        ${days.map(day => {
+          const eventsList = person.events[day] || [];
+          if(eventsList.length === 0) return `<td class="border px-3 py-1 align-top">-</td>`;
+          return `<td class="border px-3 py-1 align-top">${eventsList.map((e, i) => {
+            return `
+              <div class="mb-1">
+                ${escapeHtml(e.event)}${e.time ? ` (${escapeHtml(e.time)})` : ""}
+                <button onclick="editEvent('${person.id}', '${day}', ${i})" title="Bearbeiten" class="ml-2 text-blue-600 hover:text-blue-900 cursor-pointer">✏️</button>
+                <button onclick="deleteEventPrompt('${person.id}', '${day}', ${i})" title="Löschen (Admin)" class="ml-1 text-red-600 hover:text-red-900 cursor-pointer">🗑️</button>
+              </div>
+            `;
+          }).join('')}</td>`;
+        }).join('')}
+        <td class="border px-3 py-1 text-center">
+          <button onclick="deletePersonPrompt('${person.id}')" class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-white font-semibold">🗑️ Alle löschen</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/&/g, "&amp;")
+               .replace(/</g, "&lt;")
+               .replace(/>/g, "&gt;")
+               .replace(/"/g, "&quot;")
+               .replace(/'/g, "&#039;");
+  }
+
+  async function editEvent(personId, day, eventIndex) {
+    const person = entries[personId];
+    if(!person) return;
+
+    const ev = person.events[day][eventIndex];
+    const newEvent = prompt("Neuer Eventname:", ev.event);
+    if (newEvent === null) return;
+    const newTime = prompt("Neue Uhrzeit (HH:MM) oder leer lassen:", ev.time);
+    if (newTime === null) return;
+
+    ev.event = newEvent.trim() || ev.event;
+    ev.time = newTime.trim();
+
+    try {
+      await db.ref("entries/" + personId).set(person);
+    } catch (error) {
+      alert("Fehler beim Speichern: " + error);
+    }
+  }
+
+  function deleteEventPrompt(personId, day, eventIndex) {
+    const pass = prompt("Admin Passwort eingeben zum Löschen:");
+    if (pass !== ADMIN_PASSWORD) {
+      alert("Falsches Passwort!");
+      return;
+    }
+    deleteEvent(personId, day, eventIndex);
+  }
+
+  async function deleteEvent(personId, day, eventIndex) {
+    const person = entries[personId];
+    if (!person) return;
+
+    person.events[day].splice(eventIndex, 1);
+
+    try {
+      await db.ref("entries/" + personId).set(person);
+    } catch (error) {
+      alert("Fehler beim Löschen: " + error);
+    }
+  }
+
+  function deletePersonPrompt(personId) {
+    const pass = prompt("Admin Passwort eingeben zum Löschen der gesamten Person:");
+    if (pass !== ADMIN_PASSWORD) {
+      alert("Falsches Passwort!");
+      return;
+    }
+    deletePerson(personId);
+  }
+
+  async function deletePerson(personId) {
+    try {
+      await db.ref("entries/" + personId).remove();
+    } catch (error) {
+      alert("Fehler beim Löschen: " + error);
+    }
+  }
+
+</script>
+</body>
+</html>
